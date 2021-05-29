@@ -506,9 +506,48 @@ func (k *ExtendedKey) ECPrivKey() (*btcec.PrivateKey, error) {
 
 // Address converts the extended key to a standard bitcoin pay-to-pubkey-hash
 // address for the passed network.
+//
+// Deprecated: Address exists for historical compatibility and should not be
+// used. To generate an address use the function for the specific type of
+// address you need.
 func (k *ExtendedKey) Address(net *chaincfg.Params) (*btcutil.AddressPubKeyHash, error) {
+	return k.AddressP2PKH(net)
+}
+
+// AddressP2PKH converts the extended key to a standard bitcoin pay-to-pubkey-hash
+// address for the passed network.
+func (k *ExtendedKey) AddressP2PKH(net *chaincfg.Params) (*btcutil.AddressPubKeyHash, error) {
 	pkHash := btcutil.Hash160(k.pubKeyBytes())
 	return btcutil.NewAddressPubKeyHash(pkHash, net)
+}
+
+// AddressNP2WPKH converts the extended key to a bitcoin pay-to-witness-public-key-hash
+// nested in a pay-to-script-hash address for the passed network.
+func (k *ExtendedKey) AddressNP2WPKH(net *chaincfg.Params) (*btcutil.AddressScriptHash, error) {
+	pkHash := btcutil.Hash160(k.pubKeyBytes())
+
+	// The simplest way: hard-code the witnessProgram for version 0:
+	// witnessVersion := []byte{0x00}
+	// witnessHash := append([]byte{0x14}, pkHash...)
+	// witnessProgram := append(witnessVersion, witnessHash...)
+
+	// The generic way: let NewAddressWitnessPubKeyHash define the version, etc.:
+	P2WPKH, err := btcutil.NewAddressWitnessPubKeyHash(pkHash, net)
+	if err != nil {
+		return nil, err
+	}
+	witnessVersion := []byte{P2WPKH.WitnessVersion()}
+	witnessHash := append([]byte{byte(len(P2WPKH.WitnessProgram()))}, P2WPKH.WitnessProgram()...)
+	witnessProgram := append(witnessVersion, witnessHash...)
+
+	return btcutil.NewAddressScriptHash(witnessProgram, net)
+}
+
+// AddressP2WPKH converts the extended key to a bitcoin pay-to-witness-public-key-hash
+// for the passed network.
+func (k *ExtendedKey) AddressP2WPKH(net *chaincfg.Params) (*btcutil.AddressWitnessPubKeyHash, error) {
+	pkHash := btcutil.Hash160(k.pubKeyBytes())
+	return btcutil.NewAddressWitnessPubKeyHash(pkHash, net)
 }
 
 // paddedAppend appends the src byte slice to dst, returning the new slice.
